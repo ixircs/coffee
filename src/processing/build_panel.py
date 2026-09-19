@@ -20,9 +20,12 @@ COLUMN_ORDER = [
     "arabica_usd_kg",
     "robusta_usd_kg",
     "frost_regions",
+    "frost_days_total",
+    "min_tmin",
     "rain_anom",
     "brl_usd",
 ]
+WEATHER_COLUMNS = ["frost_regions", "frost_days_total", "min_tmin", "rain_anom"]
 
 
 def build_panel(weather_end: str, analysis_start: str = ANALYSIS_START) -> pd.DataFrame:
@@ -40,10 +43,11 @@ def build_panel(weather_end: str, analysis_start: str = ANALYSIS_START) -> pd.Da
 
     # Left join on prices: the panel exists per price month, and a month without
     # FX stays NaN rather than dropping a coffee observation.
-    panel = prices.join(weather[["frost_regions", "rain_anom"]], how="left").join(fx, how="left")
+    panel = prices.join(weather[WEATHER_COLUMNS], how="left").join(fx, how="left")
     panel = panel.loc[analysis_start:, COLUMN_ORDER]
-    # A count of regions, so keep it integral; Int64 still allows NaN.
+    # Counts, so keep them integral; Int64 still allows NaN.
     panel["frost_regions"] = panel["frost_regions"].astype("Int64")
+    panel["frost_days_total"] = panel["frost_days_total"].astype("Int64")
     panel.index.name = "month"
     return panel
 

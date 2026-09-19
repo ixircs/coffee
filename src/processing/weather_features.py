@@ -28,6 +28,9 @@ def monthly_features(daily: pd.DataFrame, percentile: float = FROST_PERCENTILE) 
             "frost_days": is_frost.resample("MS").sum(min_count=1),
             "rain_mm": daily["PRECTOTCORR"].resample("MS").sum(min_count=1),
             "temp_c": daily["T2M"].resample("MS").mean(),
+            # frost_regions saturates at 3; the coldest night of the month keeps
+            # severity, which a count of days cannot express.
+            "min_tmin": daily["T2M_MIN"].resample("MS").min(),
         }
     )
     # Anomaly against the same calendar month, so seasonality is not read as a shock.
@@ -41,8 +44,10 @@ def combine_regions(per_region: dict[str, pd.DataFrame]) -> pd.DataFrame:
     """Collapse per-region monthly features into one row per month."""
     # NaN > 0 is False, so mask unknown months back to NaN before counting.
     hit = [m["frost_days"].gt(0).where(m["frost_days"].notna()) for m in per_region.values()]
+    days = [m["frost_days"] for m in per_region.values()]
     rain = [m["rain_anom"] for m in per_region.values()]
     temp = [m["temp_c"] for m in per_region.values()]
+    tmin = [m["min_tmin"] for m in per_region.values()]
 
     # Count of regions hit (0-3) rather than a mean: averaging temperatures lets
     # two warm regions cancel a frost in the third. min_count covers every region,
@@ -50,6 +55,10 @@ def combine_regions(per_region: dict[str, pd.DataFrame]) -> pd.DataFrame:
     combined = pd.DataFrame(
         {
             "frost_regions": pd.concat(hit, axis=1).sum(axis=1, min_count=len(hit)),
+            # Intensity: 3 regions hit reads the same for 3 frost days as for 13.
+            "frost_days_total": pd.concat(days, axis=1).sum(axis=1, min_count=len(days)),
+            # Severity: the single coldest night anywhere in the growing area.
+            "min_tmin": pd.concat(tmin, axis=1).min(axis=1),
             "rain_anom": pd.concat(rain, axis=1).mean(axis=1),
             "temp_c": pd.concat(temp, axis=1).mean(axis=1),
         }
