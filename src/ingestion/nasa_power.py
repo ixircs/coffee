@@ -31,25 +31,30 @@ def fetch_weather(
     end: str,
     params: Sequence[str] = DEFAULT_PARAMS,
     raw_dir: str | Path = RAW_DIR,
+    use_cache: bool = True,
 ) -> pd.DataFrame:
     """Return daily weather for one point, indexed by date; saves the raw JSON response."""
-    query = {
-        "parameters": ",".join(params),
-        "community": COMMUNITY,
-        "latitude": lat,
-        "longitude": lon,
-        "start": start,
-        "end": end,
-        "format": "JSON",
-    }
-    response = requests.get(BASE_URL, params=query, timeout=TIMEOUT)
-    response.raise_for_status()
-    payload = response.json()
-
     raw_dir = Path(raw_dir)
     raw_dir.mkdir(parents=True, exist_ok=True)
     out_file = raw_dir / f"nasa_power_{lat}_{lon}_{start}_{end}.json"
-    out_file.write_text(json.dumps(payload), encoding="utf-8")
+
+    # Reuse the archived response so the panel can be rebuilt without network access.
+    if use_cache and out_file.exists():
+        payload = json.loads(out_file.read_text(encoding="utf-8"))
+    else:
+        query = {
+            "parameters": ",".join(params),
+            "community": COMMUNITY,
+            "latitude": lat,
+            "longitude": lon,
+            "start": start,
+            "end": end,
+            "format": "JSON",
+        }
+        response = requests.get(BASE_URL, params=query, timeout=TIMEOUT)
+        response.raise_for_status()
+        payload = response.json()
+        out_file.write_text(json.dumps(payload), encoding="utf-8")
 
     records = payload["properties"]["parameter"]
     df = pd.DataFrame({name: pd.Series(values) for name, values in records.items()})
