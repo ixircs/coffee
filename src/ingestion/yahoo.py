@@ -20,5 +20,11 @@ def fetch_fx(ticker: str = TICKER, start: str = "2000-01-01", end: str | None = 
     # Monthly mean, not month-end close: a single day's spike should not stand in
     # for the rate coffee was actually traded at over the month.
     monthly = close.resample("MS").mean().to_frame(COLUMN)
+
+    # The month in progress averages only the days elapsed so far, which would
+    # enter the panel looking like a complete month. Drop it.
+    current_month = pd.Timestamp.today().normalize().replace(day=1)
+    monthly = monthly.drop(index=current_month, errors="ignore")
+
     monthly.index.name = "date"
     return monthly

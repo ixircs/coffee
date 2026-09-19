@@ -6,7 +6,7 @@ import pandas as pd
 
 SHEET_NAME = "Monthly Prices"
 NAMES_ROW = 4  # commodity names
-UNITS_ROW = 5  # units, e.g. "($/kg)"
+
 DATA_START_ROW = 6
 
 COLUMNS = {
