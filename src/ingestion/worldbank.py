@@ -5,8 +5,7 @@ from pathlib import Path
 import pandas as pd
 
 SHEET_NAME = "Monthly Prices"
-NAMES_ROW = 4  # commodity names
-
+NAMES_ROW = 4  # commodity names; the units row sits directly below it
 DATA_START_ROW = 6
 
 COLUMNS = {
