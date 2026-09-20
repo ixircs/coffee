@@ -40,6 +40,20 @@ def monthly_features(daily: pd.DataFrame, percentile: float = FROST_PERCENTILE) 
     return monthly
 
 
+def coldest_day(daily_by_region: dict[str, pd.DataFrame], year: int, month: int) -> dict:
+    """Return the coldest T2M_MIN day of one month across all regions, as the event date."""
+    candidates = []
+    for name, daily in daily_by_region.items():
+        month_data = daily[(daily.index.year == year) & (daily.index.month == month)]
+        series = month_data["T2M_MIN"].dropna()
+        if series.empty:
+            continue
+        candidates.append({"region": name, "date": series.idxmin(), "t2m_min": series.min()})
+    if not candidates:
+        raise ValueError(f"No T2M_MIN observations for {year}-{month:02d}")
+    return min(candidates, key=lambda c: c["t2m_min"])
+
+
 def combine_regions(per_region: dict[str, pd.DataFrame]) -> pd.DataFrame:
     """Collapse per-region monthly features into one row per month."""
     # NaN > 0 is False, so mask unknown months back to NaN before counting.
