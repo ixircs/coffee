@@ -89,6 +89,77 @@ def event_effects(panel: pd.DataFrame, event: pd.Timestamp, pre: int = PRE_MONTH
     return out
 
 
+def event_effects_its(panel: pd.DataFrame, event: pd.Timestamp, pre: int = PRE_MONTHS,
+                      post: int = POST_MONTHS, control_fx: bool = True) -> pd.DataFrame:
+    """Estimate binned effects against a counterfactual trend fitted on the pre-period only.
+
+    A trend fitted across pre AND post is near-collinear with an effect that ramps to
+    a peak around month 11, so it absorbs part of what it should measure. Standard ITS
+    practice instead projects the pre-event trend forward and measures deviations from it.
+    """
+    window = event_window(panel, event, pre=pre, post=post)
+    gap = _gap(window)
+
+    def design(sample: pd.DataFrame) -> pd.DataFrame:
+        X = pd.DataFrame({"trend": sample.k.values}, index=sample.index)
+        if control_fx:
+            X["log_brl"] = np.log(sample["brl_usd"]).values
+        return sm.add_constant(X)
+
+    pre_sample = window[window.k < 0]
+    baseline = sm.OLS(gap.loc[pre_sample.index], design(pre_sample), missing="drop").fit()
+
+    # Counterfactual: what the gap would have been had the pre-event trend continued.
+    counterfactual = baseline.predict(design(window))
+    deviation = gap - counterfactual
+
+    post_sample = window[window.k >= 0]
+    bins = pd.DataFrame(
+        {name: ((post_sample.k >= lo) & (post_sample.k <= hi)).astype(float).values
+         for name, (lo, hi) in POST_BINS.items()},
+        index=post_sample.index,
+    )
+    # No intercept: each coefficient is the mean deviation from the projected trend.
+    fit = sm.OLS(deviation.loc[post_sample.index], bins, missing="drop").fit(
+        cov_type="HAC", cov_kwds={"maxlags": HAC_LAGS}
+    )
+
+    rows = []
+    for name in POST_BINS:
+        coef, se = fit.params[name], fit.bse[name]
+        rows.append({
+            "bin": name,
+            "coef": coef,
+            "se": se,
+            "p": fit.pvalues[name],
+            "pct": (np.exp(coef) - 1) * 100,
+            "lo_pct": (np.exp(coef - 1.96 * se) - 1) * 100,
+            "hi_pct": (np.exp(coef + 1.96 * se) - 1) * 100,
+        })
+    out = pd.DataFrame(rows).set_index("bin")
+    out.attrs["nobs"] = int(fit.nobs)
+    out.attrs["pretrend_slope"] = baseline.params["trend"]
+    # The second stage treats the projected trend as known, so these SEs do not
+    # carry the first-stage uncertainty. Stated as a limitation, not hidden.
+    return out
+
+
+def compare_trend_specs(panel: pd.DataFrame, event: pd.Timestamp, **kwargs) -> pd.DataFrame:
+    """Return both trend specifications for one event, stacked for side-by-side reading."""
+    versions = {
+        "(a) tren full-window": event_effects(panel, event, **kwargs),
+        "(b) tren pre-only": event_effects_its(panel, event, **kwargs),
+    }
+    frames = []
+    for label, effects in versions.items():
+        frame = effects[["coef", "se", "p", "pct"]].copy()
+        frame["versi"] = label
+        frames.append(frame.reset_index())
+    out = pd.concat(frames)
+    out["event"] = f"{pd.Timestamp(event):%Y-%m}"
+    return out.set_index(["event", "versi", "bin"])
+
+
 def summarise(panel: pd.DataFrame, event: pd.Timestamp, **kwargs) -> dict:
     """Condense one event into the row the comparison table needs."""
     effects = event_effects(panel, event, **kwargs)
