@@ -12,7 +12,9 @@ import statsmodels.api as sm
 
 PRE_MONTHS = 12  # short window: pre-trends only hold this close to the event
 POST_MONTHS = 18  # CLAUDE.md 3: the effect peaks ~11 months out
-HAC_LAGS = 12  # CLAUDE.md 4: monthly residuals are autocorrelated, default SEs are far too small
+# Newey-West rule of thumb, maxlags = 4*(T/100)^(2/9): T=31 gives 3. A blanket 12
+# ignored sample size and broke down, producing SEs smaller than plain OLS.
+HAC_LAGS = 3
 POST_BINS = {"post_0_5": (0, 5), "post_6_11": (6, 11), "post_12_18": (12, 18)}
 
 
