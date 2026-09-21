@@ -11,7 +11,7 @@ import pandas as pd
 import statsmodels.api as sm
 
 PRE_MONTHS = 12  # short window: pre-trends only hold this close to the event
-POST_MONTHS = 18  # CLAUDE.md 3: the effect peaks ~11 months out
+POST_MONTHS = 18  # docs/methodology.md 3.4: the effect peaks ~11 months out
 # Newey-West rule of thumb, maxlags = 4*(T/100)^(2/9): T=31 gives 3. A blanket 12
 # ignored sample size and broke down, producing SEs smaller than plain OLS.
 HAC_LAGS = 3

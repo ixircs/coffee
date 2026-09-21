@@ -14,7 +14,7 @@ PRICE_FILE = ROOT / "data" / "raw" / "CMO-Historical-Data-Monthly.xlsx"
 OUT_FILE = ROOT / "data" / "processed" / "panel_monthly.csv"
 
 WEATHER_START = "19810101"  # earliest date NASA POWER accepts
-ANALYSIS_START = "2000-01-01"  # CLAUDE.md 3: Vietnam's Robusta market is stable by then
+ANALYSIS_START = "2000-01-01"  # docs/methodology.md 3.4: Vietnam's Robusta market is stable by then
 # brl_usd has 65 NaN months before this date, so regressions that control for FX
 # start here. The panel itself is still saved in full; notebooks do the filtering.
 REGRESSION_START = "2006-03-01"

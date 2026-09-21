@@ -16,7 +16,7 @@ TIMEOUT = 60
 
 RAW_DIR = Path(__file__).resolve().parents[2] / "data" / "raw"
 
-# The three Brazilian Arabica regions used as the treatment area (CLAUDE.md 2.2).
+# The three Brazilian Arabica regions used as the treatment area (docs/methodology.md 2.2).
 REGIONS: dict[str, tuple[float, float]] = {
     "sul_de_minas": (-21.55, -45.43),
     "cerrado_mineiro": (-18.94, -46.99),

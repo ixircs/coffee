@@ -6,5 +6,4 @@ __pycache__/
 .ipynb_checkpoints/
 *.pyc
 .env
-CLAUDE.md
 data/*.pdf
