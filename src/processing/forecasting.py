@@ -57,6 +57,28 @@ def assert_no_leakage(origin: pd.Timestamp, horizon: int, columns: list[str]) ->
             )
 
 
+def assert_exog_known_at_origin(panel: pd.DataFrame, exog: pd.DataFrame,
+                                origin: pd.Timestamp) -> None:
+    """Fail if any exog value came from after the origin, checked on the values themselves.
+
+    assert_no_leakage only checks the lag arithmetic on column names, so it would pass
+    a build_exog bug that shifted the wrong way (shift(-6) reads six months AHEAD).
+    This recomputes each value from the raw panel by explicit date arithmetic,
+    independently of .shift(), and confirms both the source month and the value.
+    """
+    source = panel.copy()
+    source["log_brl"] = np.log(source["brl_usd"])
+    for column in exog.columns:
+        name, lag = column.rsplit("_lag", 1)
+        src_dates = (exog.index.to_period("M") - int(lag)).to_timestamp()
+        late = src_dates[src_dates > origin]
+        if len(late):
+            raise AssertionError(f"Leakage: {column} reads {late[0]:%Y-%m}, after origin {origin:%Y-%m}")
+        expected = source[name].astype("float64").reindex(src_dates).to_numpy()
+        if not np.allclose(exog[column].to_numpy(), expected, equal_nan=True):
+            raise AssertionError(f"Leakage: {column} values do not match {name} lagged {lag} months")
+
+
 def pick_arima_order(train: pd.Series) -> tuple[int, int, int]:
     """Return the (p, d, q) with the lowest AIC on this training sample."""
     best, best_aic = (1, 1, 0), np.inf
@@ -107,11 +129,15 @@ def walk_forward(panel: pd.DataFrame, first_origin: str = FIRST_ORIGIN,
 
             # 3. SARIMAX with lagged weather, only regressors known at the origin
             columns = usable_exog(horizon)
+            exog_train = exog_all.loc[train.index, columns]
+            future = pd.period_range(origin.to_period("M") + 1, periods=horizon, freq="M")
+            exog_future = exog_all.loc[[p.to_timestamp() for p in future], columns]
+            # Outside the try on purpose: leakage must stop the run, never be logged
+            # as an ordinary fit failure and quietly skipped.
             assert_no_leakage(origin, horizon, columns)
+            assert_exog_known_at_origin(panel, exog_train, origin)
+            assert_exog_known_at_origin(panel, exog_future, origin)
             try:
-                exog_train = exog_all.loc[train.index, columns]
-                future = pd.period_range(origin.to_period("M") + 1, periods=horizon, freq="M")
-                exog_future = exog_all.loc[[p.to_timestamp() for p in future], columns]
                 usable = exog_train.notna().all(axis=1)
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")

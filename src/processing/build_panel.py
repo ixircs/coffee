@@ -60,3 +60,11 @@ def save_panel(panel: pd.DataFrame, out_file: Path = OUT_FILE) -> Path:
     out_file.parent.mkdir(parents=True, exist_ok=True)
     panel.to_csv(out_file)
     return out_file
+
+
+def load_panel(path: Path = OUT_FILE) -> pd.DataFrame:
+    """Read the saved panel back with the dtypes build_panel produced."""
+    panel = pd.read_csv(path, index_col="month", parse_dates=["month"], date_format="%Y-%m-%d")
+    for column in ("frost_regions", "frost_days_total"):
+        panel[column] = panel[column].astype("Int64")
+    return panel[COLUMN_ORDER]
