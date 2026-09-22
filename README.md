@@ -184,6 +184,7 @@ Deliberately out of scope, with reasons:
 | Airflow / scheduling | This is a one-off analysis, not a live pipeline |
 | USDA FAS production data | Would fill the middle link: frost → production drop → price rise |
 | INMET station records | Could confirm the grid-smoothing argument for a single date |
+| `build_panel` reading FX from `data/interim/` | Would make rebuilds independent of a fresh network call; `build_panel` currently re-downloads `BRL=X` instead of reading the file the `yahoo` step already writes |
 
 ---
 
@@ -205,7 +206,7 @@ README.md          this file
 .gitignore         excludes .venv/, the three data/ subfolders above, caches, source PDFs
 ```
 
-Raw data is not committed. `.gitignore` excludes `data/` and `.venv/`.
+Raw data is not committed. `.gitignore` excludes `data/raw/`, `data/interim/`, `data/processed/` and `.venv/`, plus Python caches, `.env` and source PDFs in `data/`. `data/events.csv` is tracked.
 
 ---
 
