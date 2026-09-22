@@ -1,7 +1,12 @@
 """Fetch the BRL/USD exchange rate from Yahoo Finance."""
 
+from pathlib import Path
+
 import pandas as pd
 import yfinance as yf
+
+ROOT = Path(__file__).resolve().parents[2]
+INTERIM_FILE = ROOT / "data" / "interim" / "brl_usd_monthly.csv"
 
 TICKER = "BRL=X"  # BRL per 1 USD
 COLUMN = "brl_usd"
@@ -28,3 +33,13 @@ def fetch_fx(ticker: str = TICKER, start: str = "2000-01-01", end: str | None = 
 
     monthly.index.name = "date"
     return monthly
+
+
+if __name__ == "__main__":
+    fx = fetch_fx()
+    # build_panel downloads FX itself; this checkpoint only makes the step inspectable.
+    INTERIM_FILE.parent.mkdir(parents=True, exist_ok=True)
+    fx.to_csv(INTERIM_FILE)
+    missing = int(fx[COLUMN].isna().sum())
+    print(f"{INTERIM_FILE.relative_to(ROOT)}  {len(fx)} rows  "
+          f"({fx.index.min():%Y-%m} to {fx.index.max():%Y-%m}, {missing} months missing)")

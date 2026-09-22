@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.ingestion.nasa_power import REGIONS, fetch_weather
+from src.ingestion.nasa_power import DEFAULT_END, DEFAULT_START, REGIONS, fetch_weather
 from src.ingestion.worldbank import load_pink_sheet
 from src.ingestion.yahoo import fetch_fx
 from src.processing.weather_features import combine_regions, monthly_features
@@ -13,7 +13,6 @@ ROOT = Path(__file__).resolve().parents[2]
 PRICE_FILE = ROOT / "data" / "raw" / "CMO-Historical-Data-Monthly.xlsx"
 OUT_FILE = ROOT / "data" / "processed" / "panel_monthly.csv"
 
-WEATHER_START = "19810101"  # earliest date NASA POWER accepts
 ANALYSIS_START = "2000-01-01"  # docs/methodology.md 3.4: Vietnam's Robusta market is stable by then
 # brl_usd has 65 NaN months before this date, so regressions that control for FX
 # start here. The panel itself is still saved in full; notebooks do the filtering.
@@ -31,14 +30,14 @@ COLUMN_ORDER = [
 WEATHER_COLUMNS = ["frost_regions", "frost_days_total", "min_tmin", "rain_anom"]
 
 
-def build_panel(weather_end: str, analysis_start: str = ANALYSIS_START) -> pd.DataFrame:
+def build_panel(weather_end: str = DEFAULT_END, analysis_start: str = ANALYSIS_START) -> pd.DataFrame:
     """Return the monthly panel of prices, frost exposure, rain anomaly and FX."""
     prices = load_pink_sheet(PRICE_FILE)
 
     # Features come from the full 1981+ history, because the frost percentile
     # needs the whole distribution even though only 2000+ is analysed.
     per_region = {
-        name: monthly_features(fetch_weather(lat, lon, WEATHER_START, weather_end))
+        name: monthly_features(fetch_weather(lat, lon, DEFAULT_START, weather_end))
         for name, (lat, lon) in REGIONS.items()
     }
     weather = combine_regions(per_region)
@@ -68,3 +67,10 @@ def load_panel(path: Path = OUT_FILE) -> pd.DataFrame:
     for column in ("frost_regions", "frost_days_total"):
         panel[column] = panel[column].astype("Int64")
     return panel[COLUMN_ORDER]
+
+
+if __name__ == "__main__":
+    panel = build_panel()
+    out = save_panel(panel)
+    print(f"{out.relative_to(ROOT)}  {len(panel)} rows  "
+          f"({panel.index.min():%Y-%m} to {panel.index.max():%Y-%m})")
