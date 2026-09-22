@@ -1,146 +1,246 @@
 # Coffee Weather Shocks
+### Detecting the 2021 Brazil Frost in Global Coffee Prices
 
-> Markets price supply destruction, not cold weather.
+An end-to-end analysis of whether a Brazilian frost can be detected and measured
+in global coffee price data, built from three public sources.
 
-<!-- RYAN: 2–3 opening sentences. What was studied, what was found, why it matters.
-     Use the headline numbers: CAR+5 = +25.5%, t = 5.17, for the 20 July 2021 frost,
-     against two frost scares that show no abnormal return. -->
+---
 
-![Cumulative abnormal return of Arabica futures around three July frosts](reports/figures/daily_car.png)
+## 1. The question
 
-## Findings
+Brazil is the biggest Arabica producer in the world, and in July 2021 a severe
+frost hit its coffee-growing regions. Prices rose sharply right after.
 
-### Daily event study: cumulative abnormal return of Arabica futures (`KC=F`)
+The problem is that prices were already rising before the frost. So the obvious
+reading — frost happened, prices went up, therefore the frost did it — is not
+something the data supports on its own. What I wanted to find out is whether the
+frost really is the driver here, or whether other things were pushing prices up
+at the same time.
 
-Control: mean daily return of cocoa (`CC=F`) and cotton (`CT=F`). Estimation window
-t−130 to t−11 trading days; CAR summed from t = 0. The same specification is applied to
-all three events.
+That question turns into two smaller ones I can actually check:
 
-| Event | Model | CAR+5 | CAR+10 | CAR+20 | CAR+60 |
-|---|---|---|---|---|---|
-| 2016-07 scare (placebo) | Market model | −1.9% (t=−0.43, p=0.67) | −2.2% (t=−0.38, p=0.70) | −7.0% (t=−0.88, p=0.38) | −0.1% (t=−0.00, p=1.00) |
-| 2016-07 scare (placebo) | Raw difference | +1.6% (t=+0.34, p=0.74) | +0.6% (t=+0.09, p=0.93) | −1.5% (t=−0.18, p=0.86) | +16.3% (t=+1.04, p=0.30) |
-| 2019-07 scare (placebo) | Market model | −0.5% (t=−0.10, p=0.92) | −4.1% (t=−0.65, p=0.51) | −11.1% (t=−1.34, p=0.18) | −6.8% (t=−0.47, p=0.64) |
-| 2019-07 scare (placebo) | Raw difference | +0.1% (t=+0.01, p=0.99) | −4.3% (t=−0.64, p=0.52) | −5.0% (t=−0.54, p=0.59) | −4.0% (t=−0.25, p=0.80) |
-| **2021-07 damage (treated)** | **Market model** | **+25.5% (t=+5.17, p<0.001)** | +7.5% (t=+1.22, p=0.23) | +4.9% (t=+0.58, p=0.56) | +11.3% (t=+0.76, p=0.45) |
-| **2021-07 damage (treated)** | **Raw difference** | **+23.2% (t=+4.45, p<0.001)** | +6.3% (t=+0.96, p=0.34) | +1.9% (t=+0.22, p=0.83) | +14.2% (t=+0.89, p=0.38) |
+1. **Can a weather shock in Brazil be detected and measured in the price data at
+   all?**
+2. **Do Arabica and Robusta normally move together, and did they separate after
+   July 2021?**
 
-Event dates (t = 0): 2016-07-18, 2019-07-08, 2021-07-20.
-Source: [`notebooks/04_daily_event_study.ipynb`](notebooks/04_daily_event_study.ipynb).
+The second one matters because Robusta is grown in Vietnam and Indonesia, not
+Brazil. It sits in the same market — same shipping costs, same global demand,
+same inflation — but it is not exposed to Brazilian frost. That gives me
+something to compare Arabica against.
 
-Cross-check against the primary source: `KC=F` closed at 165.65 on 20 July 2021 and 207.80
-on 26 July 2021 (+25.45%). The ICO July 2021 report gives 165.65 → 207.8 (+25.4%).
+---
 
-![Daily abnormal returns around the 20 July 2021 frost](reports/figures/daily_ar_2021.png)
+## 2. Data
 
-<!-- RYAN: interpret the CAR table. Points to decide on yourself:
-     - what CAR+5 shows for 2021 versus the two placebos
-     - why CAR falls from +25.5% at t+5 to +7.5% at t+10 (see the daily AR chart:
-       t+8 = 30 Jul 2021 alone is 54% of the decline)
-     - what that implies for sub-question 3, market efficiency
-     State it as "consistent with", not "proves". -->
+Three independent sources, combined into one monthly analysis panel.
 
-### Forecasting: walk-forward, refit at every origin
+| Source | What it provides | Frequency | Coverage | Why this source |
+|---|---|---|---|---|
+| **World Bank Pink Sheet** (CMO) | Arabica and Robusta prices, USD/kg | Monthly | 1960– | Official World Bank data, and it carries Arabica and Robusta in the same file in the same unit ($/kg) — the two series are directly comparable with no conversion. |
+| **NASA POWER** (MERRA-2) | Daily min/max temperature, precipitation | Daily | 1981– | Free, no API key, daily resolution back to 1981, and it accepts any lat/lon — so I can pull the specific growing regions rather than a country average. My pull had no missing values across the full history. |
+| **Yahoo Finance** (`BRL=X`) | BRL/USD exchange rate | Daily | 2003– | Brazilian farmers sell in USD but spend in BRL, so the exchange rate moves coffee prices even with no weather event at all. It has to be accounted for; `BRL=X` is a free daily series. |
 
-Target `log(arabica_usd_kg)`, errors back-transformed to USD/kg. 103 origins from 2018-01.
-Exogenous regressors are lagged and kept only when known at the forecast origin.
-The paired test compares each model's absolute error with the naive model's, month by month.
+### Weather stations
 
-| h (months) | Model | MAE (USD/kg) | RMSE (USD/kg) | MAPE | MAE vs naive | Paired test p | Beats naive in |
-|---|---|---|---|---|---|---|---|
-| 1 | Naive | 0.254 | 0.357 | 4.8% | 1.000 | — | — |
-| 1 | ARIMA | 0.255 | 0.356 | 4.8% | 1.003 | 0.93 | 50% of months |
-| 1 | SARIMAX | 0.250 | 0.352 | 4.8% | 0.983 | 0.66 | 53% of months |
-| 3 | Naive | 0.519 | 0.684 | 9.6% | 1.000 | — | — |
-| 3 | ARIMA | 0.528 | 0.686 | 9.9% | 1.016 | 0.32 | 41% of months |
-| 3 | SARIMAX | 0.524 | 0.683 | 9.8% | 1.010 | 0.70 | 46% of months |
-| 6 | Naive | 0.719 | 0.991 | 13.0% | 1.000 | — | — |
-| 6 | ARIMA | 0.729 | 0.997 | 13.2% | 1.014 | 0.28 | 49% of months |
-| 6 | SARIMAX | 0.729 | 0.995 | 13.3% | 1.014 | 0.45 | 44% of months |
+Three Arabica-growing regions in Brazil:
 
-Prediction written before any model was run: *the naive baseline will not be meaningfully
-beaten*. Source: [`notebooks/05_forecasting.ipynb`](notebooks/05_forecasting.ipynb).
-
-![Six-month-ahead forecasts against realised prices](reports/figures/forecast_comparison.png)
-
-<!-- RYAN: interpret the forecasting table. Was the pre-registered prediction confirmed?
-     How large is the only ratio below 1, and what do the paired test and win rate say
-     about it? How does this connect to the event study result? -->
-
-## Data & method
-
-| Source | Series | Frequency | Accessed |
+| Region | Latitude | Longitude | Note |
 |---|---|---|---|
-| World Bank Commodity Price Data ("Pink Sheet") <!-- RYAN: add the download URL --> | Coffee, Arabica; Coffee, Robusta (USD/kg) | monthly | by 2026-09-17 (file updated 2026-09-02) |
-| [NASA POWER daily point API](https://power.larc.nasa.gov/api/temporal/daily/point) | `T2M_MIN`, `T2M_MAX`, `T2M`, `PRECTOTCORR`, three Arabica regions | daily, 1981– | 2026-09-18 |
-| Yahoo Finance via `yfinance` | `BRL=X` | daily → monthly mean | 2026-09-18 |
-| Yahoo Finance via `yfinance` | `KC=F` (Arabica), `CC=F` (cocoa), `CT=F` (cotton) | daily, 2015– | 2026-09-20 |
-| [ICO Coffee Market Report, July 2021](https://www.ico.org/documents/cy2020-21/cmr-0721-e.pdf) | treated event: 20 July 2021 frost, damage | report | 2026-09-19 |
-| [ICO Coffee Market Report, July 2019](https://www.ico.org/documents/cy2018-19/cmr-0719-e.pdf) | placebo: frost scare, no damage | report | 2026-09-19 |
-| [ICO Coffee Market Report, July 2016](https://www.ico.org/documents/cy2015-16/cmr-0716-e.pdf) | placebo: frost scare, no damage | report | 2026-09-19 |
-| [ICO Coffee Market Report, May 2022](https://www.ico.org/documents/cy2021-22/cmr-0522-e.pdf) | excluded: its pre-period contains the 2021 frost | report | 2026-09-19 |
+| Sul de Minas | −21.55 | −45.43 | Highest frost risk, elevation ~869 m |
+| Cerrado Mineiro | −18.94 | −46.99 | Further north, lower frost exposure |
+| Mogiana (São Paulo) | −20.54 | −47.40 | Frost-prone |
 
-The full event table, with the ICO wording behind each classification, is in
-[`data/events.csv`](data/events.csv).
+A single grid cell proves little on its own — one unusual reading could be an
+artefact of that cell. Three separate growing regions let me check whether a cold
+anomaly shows up consistently, and the percentile thresholds end up differing
+between them (6.06 °C to 7.35 °C), which confirms that each region needs its own
+baseline rather than a shared one.
 
-**Identification.** Events are chosen and classified from ICO reports as either *damage*
-(treated) or *scare* (placebo), never from the price response. The day within each event
-month is the coldest day across three Brazilian Arabica regions in NASA POWER; for July 2021
-that rule returns 20 July, the ICO date. Arabica futures are compared with a cocoa–cotton
-control through a market model estimated on the 120 trading days before each event. One
-identical specification is run on all three events, so the placebos test whether cold
-weather alone moves prices.
+### Data quirks worth documenting
 
-Full data specifications, every design decision with its rationale, and everything that was
-tried and rejected: [**`docs/methodology.md`**](docs/methodology.md).
+- The Pink Sheet has **two header rows** (commodity names, then units); data starts on the third.
+- Missing values in the Pink Sheet are the ellipsis character `…`, not blanks or `NaN`.
+- NASA POWER encodes missing values as **`-999.0`**. If this is not converted to
+  `NaN`, Python reads it as a temperature of −999 °C — which makes that day the
+  coldest on record and corrupts every percentile computed from the series.
 
-## Why the approach changed
+---
 
-The project began as a monthly difference-in-differences on the Arabica–Robusta price gap.
-Changing only how the pre-existing trend is controlled moves the estimates:
+## 3. Finding A — an absolute frost threshold does not work
 
-| Event | Bin | Full-window trend | Pre-only trend |
-|---|---|---|---|
-| 2021-07 damage | 6–11 months | +11.4% | +7.2% |
-| 2021-07 damage | 12–18 months | +1.1% | −3.5% |
-| 2019-07 scare | 6–11 months | +7.4% | +19.4% |
-| 2019-07 scare | 12–18 months | −1.2% | +14.9% |
+I first defined a frost day as any day where NASA POWER's `T2M_MIN` fell to 2 °C
+or below. That is the physically obvious threshold: water freezes at 0 °C, and
+2 °C leaves a margin.
 
-No p-values are reported for the monthly design: at n = 31 with one event, no
-standard-error estimator is reliable.
-Source: [`notebooks/02_causal_did.ipynb`](notebooks/02_causal_did.ipynb).
+It detected **zero frost days in July 2021** — for a frost that is extensively
+documented and that ICO called "one of the most intense frosts in living memory."
 
-<!-- RYAN: tell the sequence in your own words. This is the most valuable section.
-     - what you tried first, and why it looked reasonable
-     - what went wrong: parallel trends fail beyond 18 months, the placebo windows
-       overlap, the estimates shift with the trend specification, the standard
-       errors broke down
-     - what you learned, and why a daily window solves the problem the monthly one
-       could not
-     The details are in docs/methodology.md §4. -->
+The data was not wrong. The lowest reading at Sul de Minas was **3.05 °C on
+20 July**, against a normal July minimum of **8–12 °C** — clearly anomalous, just
+not below 2 °C. Two properties of the measurement explain the gap:
 
-## Limitations
+- The MERRA-2 grid cell is roughly **50 km across**, so each value is an average
+  over a wide area. Local cold pockets are smoothed away.
+- `T2M_MIN` is measured **2 metres above the ground**, while the surface — where
+  the damage to the plant actually happens — is colder than the air above it.
 
-- **One treated event.** A single damaging frost in 11 years of daily data; the result does
-  not generalise to damaging frosts in general.
-- **The 2016-07 placebo is confounded** by a Colombian truckers' strike and BRL moves in the
-  same month.
-- **The ~50 km weather grid cannot rank severity.** It cannot separate the damaging July 2021
-  frost from the minor May 2022 cold snap; no percentile threshold reproduces that ranking.
-- **Biennial bearing.** 2021/22 was already an off year in Arabica's two-year production
-  cycle, an Arabica-specific factor that moves the treated series and not the control.
-- **COVID-19 and Robusta.** Vietnam's July–September 2021 lockdown disrupted Robusta exports,
-  lifting the monthly control group in the same months as the frost.
-- **Constant σ_AR.** The daily t-test uses pre-event volatility, but Arabica volatility
-  spiked after the frost, which makes long-horizon tests too lenient.
-- **A weak daily control.** `KC=F` returns correlate 0.18 with the cocoa–cotton control
-  (market-model betas 0.21–0.48), so the model removes little common movement.
-- **Low power at long horizons.** A CAR+60 of +11.3% cannot be distinguished from zero.
-- **The 30 July 2021 price drop** is consistent with the second cold reading not being a
-  damaging frost, but profit-taking and month-end positioning are alternative explanations.
-- **Forecasting covers one market over 103 origins** and says nothing about other
-  commodities or frequencies.
-- **FX data gaps.** `BRL=X` is missing before 2006-03, which shortens every regression that
-  controls for FX.
+I replaced the absolute threshold with a percentile-based one, computed per
+location from that location's own **June–August** history: a frost day is a day
+whose `T2M_MIN` falls below roughly the 2nd percentile of that distribution.
 
-Details and sources for each: [`docs/methodology.md` §5](docs/methodology.md#5-limitations).
+| Region | Threshold |
+|---|---|
+| Sul de Minas | 6.06 °C |
+| Cerrado Mineiro | 7.07 °C |
+| Mogiana | 7.35 °C |
+
+The thresholds differ by region, which is what you would expect — each region has
+its own climate, so each needs its own definition of "unusually cold."
+
+The lesson: the threshold had to come from the data's own distribution rather
+than from the physics of freezing, because the instrument does not measure what
+its name suggests. "Minimum temperature" here means the minimum of a 50 km
+average, two metres up — not the temperature at the leaf.
+
+---
+
+## 4. Finding B — verifying the event against a primary source
+
+The frost date is the input to every downstream step in this project, so I
+verified it against a primary source rather than a secondary summary: the **ICO
+Coffee Market Report, July 2021**.
+
+The report confirms the date as **20 July 2021** (pp. 1, 3) and records the market
+reaction: NY Arabica futures rose from **165.65 to 207.80 US cents/lb in one
+week**, and the ICO composite indicator price (I-CIP) reached **152.24 US
+cents/lb — its highest level since November 2014**. It also notes that the
+production impact falls on the **2022/23 crop year**, not the harvest then
+underway.
+
+Reading it also corrected two things I had taken from secondary sources.
+
+**There was only one frost wave.** A widely repeated claim that there were two —
+20 July and 29–30 July — is not supported by the ICO report, which documents only
+20 July. The NASA data does show a second dip on 30 July (3.19 °C), but gridded
+data cannot establish severity. The project uses 20 July only.
+
+**Part of the price rise was already anticipated.** ICO notes that 2021/22 was
+already an "off year" in Arabica's biennial bearing cycle — the tree alternates
+between a heavy and a light crop — so the market was expecting a smaller harvest
+before the frost happened. This is a limitation, recorded in section 5.
+
+Verifying the date mattered more than it looks. An error here would not have
+raised an exception: the code would have run, produced numbers, and every result
+downstream would have been quietly wrong.
+
+---
+
+## 5. What I did not conclude
+
+**Parallel trends are not clean.** Over a 36-month pre-period, Arabica had
+already diverged from Robusta by about **+61%** — before the frost. That is
+larger than the roughly 20% divergence that shows up after it. A naive
+before/after comparison would credit the frost with a rise that was already
+underway.
+
+**The weather data cannot rank severity.** July 2021 was severe and May 2022 was
+mild, but no threshold I tested reproduced that ordering — several percentile
+cut-offs and a degree-day measure all rated May 2022 as equal or worse. The
+causes are the ones in section 3: a 50 km grid and a 2 m measurement height. So
+the weather data *characterises* the event; it does not *identify* it. Event
+dates come from documented sources, not from the temperature series.
+
+**The control group is contaminated.** Vietnam's COVID Delta lockdown disrupted
+Robusta exports in July–September 2021, lifting the control group for reasons that have
+nothing to do with Brazil. Since the comparison rests on the gap between the two
+series, a control that rises on its own makes the frost effect look smaller than
+it actually was.
+
+**Arabica's biennial cycle was already pushing prices up.** Arabica trees
+alternate between a heavy crop year and a light one — a large harvest drains the
+tree, so the next year's is smaller on its own. ICO notes that 2021/22 was
+already an "off year", so the market was pricing in a smaller harvest before the
+frost happened. This matters twice: it moves Arabica but not Robusta, so the
+control group does not absorb it, and it was already in motion before July 2021,
+which makes it one likely explanation for the pre-trend above.
+
+The repository also contains exploratory event-study and forecasting notebooks.
+I have not validated their causal interpretation to my own satisfaction, so I do
+not present their estimates as findings here.
+
+---
+
+## 6. Future work
+
+Deliberately out of scope, with reasons:
+
+| Not done | Why not |
+|---|---|
+| LSTM / deep learning | ~312 monthly observations — would overfit and lose interpretability |
+| Prophet, XGBoost | ARIMA/SARIMAX is sufficient at this sample size |
+| Synthetic control | Complexity not justified for a two-unit comparison |
+| ERA5-Land (~9 km grid) | Better resolution, but requires a Copernicus CDS account, a queued API and NetCDF handling; the percentile method already mitigates the problem it would solve |
+| Airflow / scheduling | This is a one-off analysis, not a live pipeline |
+| USDA FAS production data | Would fill the middle link: frost → production drop → price rise |
+| INMET station records | Could confirm the grid-smoothing argument for a single date |
+
+---
+
+## 7. Repository layout
+
+```
+data/events.csv    documented frost events, with the ICO source for each
+data/raw/          immutable — never overwritten (gitignored)
+data/interim/      regenerable intermediates (gitignored)
+data/processed/    analysis-ready; panel_monthly.csv (gitignored)
+src/ingestion/     worldbank.py, nasa_power.py, yahoo.py, daily_prices.py, events.py
+src/processing/    weather_features.py, build_panel.py, event_study.py,
+                   daily_event_study.py, forecasting.py
+notebooks/         00_feasibility, 01_eda, 02_causal_did, 04_daily_event_study, 05_forecasting
+reports/figures/   exported charts
+docs/              methodology.md
+requirements.txt   pinned dependencies
+README.md          this file
+.gitignore         excludes .venv/, the three data/ subfolders above, caches, source PDFs
+```
+
+Raw data is not committed. `.gitignore` excludes `data/` and `.venv/`.
+
+---
+
+## 8. Reproducing
+
+```bash
+git clone <repo-url>
+cd coffee
+python -m venv .venv
+.venv\Scripts\activate          # Windows
+pip install -r requirements.txt
+```
+
+Then download the price file manually and place it in `data/raw/`:
+
+- **World Bank Commodity Markets ("Pink Sheet")**
+  Landing page: https://www.worldbank.org/en/research/commodity-markets
+  File: `CMO-Historical-Data-Monthly.xlsx`, sheet `Monthly Prices`
+  Accessed: 17 September 2026
+
+<!-- Note: link to the landing page, not the direct file URL — the file
+     is replaced monthly and direct links break. -->
+
+Weather and FX data are fetched by the ingestion scripts:
+
+```bash
+python -m src.ingestion.nasa_power
+python -m src.ingestion.yahoo
+python -m src.processing.build_panel
+```
+
+---
+
+## Author
+
+Ryan Christopher Setiawan — Data Science, BINUS University
+Solo project: scope design, data source selection and verification, pipeline
+implementation, analysis, and documentation.
